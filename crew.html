@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crew Portal — Stage Schedule</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f1115">
+    <style>
+        :root {
+            --bg-main: #0f1115;
+            --bg-panel: #1a1d24;
+            --border-color: #2a2e39;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .header-meta-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .header-cruise-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--accent);
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        .header-input-port {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #fff;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            border-radius: 6px;
+            flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .header-input-date {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--accent);
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            border-radius: 6px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .card h3 { font-size: 1rem; color: var(--accent); margin-bottom: 12px; }
+
+        .crew-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .crew-card-btn {
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: var(--text-main);
+            padding: 18px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            align-items: flex-start;
+            transition: all 0.2s;
+            text-align: left;
+            width: 100%;
+        }
+        .crew-card-btn:active {
+            background: rgba(56, 189, 248, 0.25);
+            border-color: var(--accent);
+        }
+        .crew-card-name { font-size: 1.15rem; color: #fff; }
+        .crew-card-role { font-size: 0.8rem; color: var(--text-muted); font-weight: normal; }
+
+        .ipm-badge-sm {
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            text-transform: uppercase;
+        }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; vertical-align: top; }
+        th { color: var(--text-muted); font-weight: 600; background-color: rgba(0,0,0,0.2); }
+
+        .top-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .btn-back, .btn-refresh {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-back:active, .btn-refresh:active { background: var(--border-color); }
+        .status-dot { font-size: 0.75rem; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <div id="crew-content">
+        <div class="card"><p style="color: var(--text-muted); text-align: center;">Loading schedule...</p></div>
+    </div>
+
+    <script>
+        // Shared cloud storage served by this site (Netlify Function + Netlify Database)
+        const API_URL = "/api/state";
+
+        const IPM_COLORS = {
+            blue:   { bg: '#2563eb', text: '#ffffff', label: 'BLUE' },
+            green:  { bg: '#16a34a', text: '#ffffff', label: 'GREEN' },
+            red:    { bg: '#dc2626', text: '#ffffff', label: 'RED' },
+            purple: { bg: '#9333ea', text: '#ffffff', label: 'PURPLE' },
+            white:  { bg: '#f8fafc', text: '#0f172a', label: 'NONE' }
+        };
+
+        let selectedStaff = null;
+        let appDataGlobal = null;
+        let lastSyncText = "Offline";
+
+        async function loadAppData() {
+            {
+                try {
+                    let response = await fetch(API_URL, { cache: "no-store" });
+                    if (!response.ok) throw new Error("HTTP " + response.status);
+                    let cloudData = await response.json();
+                    if (cloudData && cloudData.cruises && Object.keys(cloudData).length > 0) {
+                        localStorage.setItem('stage_manager_app_v43', JSON.stringify(cloudData));
+                        lastSyncText = "Synced: " + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        return cloudData;
+                    }
+                } catch(e) {
+                    lastSyncText = "Cached (Offline)";
+                }
+            }
+            
+            const saved = localStorage.getItem('stage_manager_app_v43');
+            if (saved) {
+                try { return JSON.parse(saved); } catch(e) {}
+            }
+            return null;
+        }
+
+        async function refreshData() {
+            lastSyncText = "Updating...";
+            renderCrewPortal();
+            const fresh = await loadAppData();
+            if (fresh) appDataGlobal = fresh;
+            renderCrewPortal();
+        }
+
+        function renderCrewPortal() {
+            const container = document.getElementById('crew-content');
+            const data = appDataGlobal;
+
+            if (!data || !data.cruises || !data.currentCruise) {
+                container.innerHTML = `<div class="card"><p style="color: var(--text-muted); text-align: center;">No schedule published yet. Open the Manager Portal once — it publishes the schedule automatically.</p></div>`;
+                return;
+            }
+
+            let cruiseCode = data.currentCruise;
+            let cruiseObj = data.cruises[cruiseCode];
+
+            if (!cruiseObj) {
+                container.innerHTML = `<div class="card"><p style="color: var(--text-muted); text-align: center;">Cruise ${cruiseCode} data not initialized.</p></div>`;
+                return;
+            }
+
+            let activeCrewDay = cruiseObj.crewDay || 'DAY 1';
+            let currentMeta = cruiseObj.dayMeta?.[activeCrewDay] || { port: "Port", date: "Date" };
+
+            if (!selectedStaff) {
+                let gridHtml = '';
+                let staffList = cruiseObj.staffMembers || ["ALEX", "JOVAN", "NALA", "JOSEPH"];
+
+                staffList.forEach(staff => {
+                    let sMeta = data.globalStaffMeta?.[staff] || {};
+                    let sIpmKey = sMeta.ipmByDay?.[activeCrewDay] || 'green';
+                    let sIpmStyle = IPM_COLORS[sIpmKey] || IPM_COLORS.green;
+
+                    gridHtml += `
+                        <button class="crew-card-btn" onclick="selectedStaff = '${staff}'; renderCrewPortal();">
+                            <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                                <span class="crew-card-name">${staff}</span>
+                                <div class="ipm-badge-sm" style="background-color: ${sIpmStyle.bg}; color: ${sIpmStyle.text};">
+                                    <span>${sIpmStyle.label}</span>
+                                </div>
+                            </div>
+                            <span class="crew-card-role">${sMeta.role || 'Stage Technician'} (DECT: ${sMeta.phone || 'N/A'})</span>
+                        </button>
+                    `;
+                });
+
+                container.innerHTML = `
+                    <div class="top-controls">
+                        <span class="status-dot">${lastSyncText}</span>
+                        <button class="btn-refresh" onclick="refreshData()">↻ Refresh</button>
+                    </div>
+                    <div class="header-meta-row">
+                        <div class="header-cruise-label">${cruiseCode}</div>
+                        <div class="header-input-port">${currentMeta.port || 'Port'}</div>
+                        <div class="header-input-date">${currentMeta.date || 'Date'}</div>
+                    </div>
+                    <div class="card">
+                        <h3 style="color: var(--accent);">Select Crew Member</h3>
+                        <div class="crew-grid">${gridHtml}</div>
+                    </div>
+                `;
+            } else {
+                let staff = selectedStaff;
+                let sMeta = data.globalStaffMeta?.[staff] || {};
+                let sRows = cruiseObj.schedules?.[activeCrewDay]?.[staff] || [];
+                let staffIpmKey = sMeta.ipmByDay?.[activeCrewDay] || 'green';
+                let staffIpmStyle = IPM_COLORS[staffIpmKey] || IPM_COLORS.green;
+
+                let rowsHtml = '';
+                sRows.forEach(r => {
+                    if (r.time || r.event) {
+                        rowsHtml += `
+                            <tr>
+                                <td style="width: 70px; text-align: center; font-weight: 600; color: var(--accent);">${r.time || ''}</td>
+                                <td style="font-weight: 500;">${r.event || ''}</td>
+                                <td style="width: 110px; color: var(--text-muted);">${r.venue || ''}</td>
+                                <td>${r.details || ''}</td>
+                            </tr>
+                        `;
+                    }
+                });
+                if (!rowsHtml) rowsHtml = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 30px;">No scheduled entries for today.</td></tr>`;
+
+                container.innerHTML = `
+                    <div class="top-controls">
+                        <button class="btn-back" onclick="selectedStaff = null; renderCrewPortal();">← Back</button>
+                        <span class="status-dot">${lastSyncText}</span>
+                    </div>
+                    <div class="header-meta-row">
+                        <div class="header-cruise-label">${cruiseCode}</div>
+                        <div class="header-input-port">${currentMeta.port || 'Port'}</div>
+                        <div class="header-input-date">${currentMeta.date || 'Date'}</div>
+                    </div>
+                    <div class="card">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+                            <h3 style="font-size: 1.2rem; margin: 0;">${staff}</h3>
+                            <div class="ipm-badge-sm" style="background-color: ${staffIpmStyle.bg}; color: ${staffIpmStyle.text};">
+                                <span>IPM: ${staffIpmStyle.label}</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 14px; display: flex; gap: 16px;">
+                            <span>Role: <strong style="color: #fff;">${sMeta.role || 'N/A'}</strong></span>
+                            <span>DECT: <strong style="color: #fff;">${sMeta.phone || 'N/A'}</strong></span>
+                        </div>
+                        <table>
+                            <tr>
+                                <th style="text-align: center;">Time</th>
+                                <th>Event / Task</th>
+                                <th>Venue</th>
+                                <th>Details</th>
+                            </tr>
+                            ${rowsHtml}
+                        </table>
+                    </div>
+                `;
+            }
+        }
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+
+        async function initPortal() {
+            appDataGlobal = await loadAppData();
+            renderCrewPortal();
+        }
+
+        setInterval(async () => {
+            let freshData = await loadAppData();
+            if (freshData) {
+                appDataGlobal = freshData;
+                renderCrewPortal();
+            }
+        }, 30000);
+
+        initPortal();
+    </script>
+</body>
+</html>

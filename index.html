@@ -1,0 +1,1459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stage Manager Portal</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0f1115">
+    <style>
+        :root {
+            --bg-main: #0f1115;
+            --bg-panel: #1a1d24;
+            --border-color: #2a2e39;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-hover: #0ea5e9;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --success: #10b981;
+            --success-hover: #059669;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        sidebar {
+            width: 280px;
+            background-color: var(--bg-panel);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .sidebar-header h2 { font-size: 1.1rem; color: #fff; font-weight: 600; }
+        .sidebar-header p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+        .nav-list {
+            list-style: none;
+            padding: 15px 10px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+        .nav-section-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 12px 16px 4px 16px;
+            letter-spacing: 0.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .nav-section-title:hover { color: var(--text-main); }
+        
+        .nav-item {
+            padding: 8px 12px;
+            margin-bottom: 3px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-item:hover { background-color: rgba(56, 189, 248, 0.08); color: var(--text-main); }
+        .nav-item.active { background-color: var(--accent); color: #0f1115; font-weight: 600; }
+
+        .nav-item-pinned {
+            padding: 8px 12px;
+            margin-bottom: 4px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--accent);
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-item-pinned:hover { background: rgba(56, 189, 248, 0.18); }
+
+        .cruise-checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+        .cruise-checkbox-label input { cursor: pointer; }
+
+        .nav-item-inactive {
+            padding: 8px 16px;
+            margin-bottom: 3px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px dashed rgba(239, 68, 68, 0.2);
+            transition: all 0.2s;
+        }
+        .nav-item-inactive:hover { background: rgba(239, 68, 68, 0.15); }
+
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        main {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        header.top-bar {
+            height: 60px;
+            background-color: var(--bg-panel);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 24px;
+        }
+        .page-title { font-size: 1.15rem; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .sync-status { font-size: 0.75rem; padding: 3px 8px; border-radius: 4px; background: rgba(56, 189, 248, 0.1); color: var(--accent); border: 1px solid rgba(56, 189, 248, 0.3); }
+        .sync-status.warn { background: rgba(239, 68, 68, 0.1); color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+        .toolbar { display: flex; gap: 10px; align-items: center; }
+
+        .btn {
+            background-color: #262b36;
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .btn:hover { background-color: #323846; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background-color: var(--accent); color: #0f1115; border: none; font-weight: 600; }
+        .btn-primary:hover { background-color: var(--accent-hover); }
+
+        .btn-view-toggle {
+            background-color: rgba(56, 189, 248, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            font-weight: 600;
+        }
+        .btn-view-toggle:hover {
+            background-color: rgba(56, 189, 248, 0.25);
+        }
+
+        .btn-danger-soft {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .btn-danger-soft:hover { background-color: var(--danger); color: #fff; }
+
+        .btn-success-soft {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            margin-top: 3px;
+        }
+        .btn-success-soft:hover { background-color: var(--success); color: #fff; }
+
+        .content-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        .card {
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .card-header-flex {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .card-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-staff-info {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .card h3 { font-size: 1rem; color: var(--accent); margin: 0; }
+
+        .staff-meta-field {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .staff-meta-field input {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            width: 150px;
+        }
+        .staff-meta-field input:focus { outline: none; border-color: var(--accent); }
+        .staff-meta-field input:disabled { opacity: 0.7; cursor: not-allowed; background-color: #121418; }
+
+        .btn-edit-role {
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            color: var(--accent);
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-edit-role:hover { border-color: var(--accent); background: rgba(56, 189, 248, 0.1); }
+
+        .days-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .day-tab-wrapper {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+        .day-tab-wrapper.active {
+            border-color: var(--accent);
+            background: rgba(56, 189, 248, 0.08);
+        }
+        .day-tab {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 2px 4px;
+        }
+        .day-tab.active {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        .crew-broadcast-checkbox {
+            cursor: pointer;
+            accent-color: var(--accent);
+            width: 15px;
+            height: 15px;
+        }
+
+        .staff-tabs {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        .staff-tab {
+            background: #222630;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .staff-tab.active { background: #2b3342; color: #fff; border-color: var(--accent); }
+        .staff-add-btn {
+            background: transparent;
+            border: 1px dashed var(--border-color);
+            color: var(--accent);
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        .staff-add-btn:hover { border-color: var(--accent); background: rgba(56, 189, 248, 0.1); }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.85rem; vertical-align: top; }
+        th { color: var(--text-muted); font-weight: 600; background-color: rgba(0,0,0,0.2); }
+
+        input[type="text"], select, textarea.table-textarea {
+            width: 100%;
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-family: inherit;
+        }
+        input[type="text"]:focus, select:focus, textarea.table-textarea:focus { outline: none; border-color: var(--accent); }
+
+        textarea.table-textarea {
+            resize: both;
+            min-height: 34px;
+            height: 38px;
+            line-height: 1.3;
+        }
+
+        .col-time input[type="text"] {
+            width: 65px;
+            text-align: center;
+        }
+
+        .header-meta-row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .header-cruise-label {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--accent);
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            display: inline-flex;
+            align-items: center;
+        }
+        .header-input-port {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 4px;
+            flex-grow: 1;
+        }
+        .header-input-date {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--accent);
+            background: var(--bg-main);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 4px;
+            width: 140px;
+            text-align: center;
+        }
+
+        .col-all { width: 60px; text-align: center; }
+        .col-time { width: 75px; }
+        .col-event { width: 260px; }
+        .col-venue { width: 160px; }
+        .col-details { width: auto; }
+        .col-action { width: 70px; text-align: center; }
+
+        .btn-all {
+            background: transparent;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: var(--accent);
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+        .btn-all:hover { border-color: var(--accent); opacity: 0.8; }
+        .btn-all.applied { background: var(--accent); color: #0f1115; border-color: var(--accent); }
+
+        textarea.notes-textarea { min-height: 120px; resize: vertical; }
+
+        .ipm-badge {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .ipm-badge select {
+            background: transparent; border: none; color: inherit; font-weight: inherit; font-size: inherit; outline: none; cursor: pointer; text-transform: uppercase;
+        }
+        .ipm-badge select option { background: var(--bg-panel); color: var(--text-main); }
+
+        .ipm-badge-sm {
+            padding: 3px 10px;
+            border-radius: 5px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.2);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .ipm-badge-sm select {
+            background: transparent; border: none; color: inherit; font-weight: inherit; font-size: inherit; outline: none; cursor: pointer; text-transform: uppercase;
+        }
+        .ipm-badge-sm select option { background: var(--bg-panel); color: var(--text-main); }
+
+        .context-menu {
+            position: fixed;
+            z-index: 1000;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            min-width: 150px;
+            padding: 4px;
+            display: none;
+        }
+        .context-menu-item {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            color: var(--text-main);
+            cursor: pointer;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .context-menu-item:hover { background: rgba(56, 189, 248, 0.12); }
+        .context-menu-item.danger { color: var(--danger); }
+        .context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.15); }
+
+        @media print {
+            sidebar, header.top-bar, .toolbar, .days-tabs, .staff-tabs, .btn, .btn-all, .btn-danger-soft, .btn-success-soft, .btn-edit-role, .context-menu { display: none !important; }
+            body, main, .content-container { background: #fff !important; color: #000 !important; overflow: visible !important; height: auto !important; }
+            .card { border: none !important; background: #fff !important; padding: 0 !important; margin: 0 !important; }
+            input, select, textarea { border: none !important; background: transparent !important; color: #000 !important; -webkit-print-color-adjust: exact; resize: none !important; }
+            .print-page-break { page-break-after: always; break-after: page; }
+        }
+    </style>
+</head>
+<body>
+
+    <sidebar>
+        <div class="sidebar-header">
+            <h2>Stage Manager</h2>
+            <p>Operations Portal</p>
+        </div>
+        <ul class="nav-list" id="nav-menu">
+            <li class="nav-section-title">Portals</li>
+            <li id="menu-schedule" class="nav-item active" onclick="switchTab('schedule')">Stage Team Schedule</li>
+            <li id="menu-crew-portal" class="nav-item" onclick="window.open('crew.html', '_blank')">Open Crew Portal ↗</li>
+            <li id="menu-notes" class="nav-item" onclick="switchTab('notes')">Manager Notes</li>
+            
+            <div id="sidebar-inactive-section"></div>
+            <div id="sidebar-pinned-cruise"></div>
+
+            <div class="nav-section-title" onclick="toggleCruisesDropdown()">
+                <span>Cruises (Itinerary)</span>
+                <span id="cruises-arrow">▼</span>
+            </div>
+            <div id="sidebar-cruises-list" style="display: none; max-height: 250px; overflow-y: auto;"></div>
+        </ul>
+        <div class="sidebar-footer">
+            <button class="btn" onclick="exportJSON()">Export JSON</button>
+            <button class="btn" onclick="document.getElementById('import-file').click()">Import JSON</button>
+            <button class="btn" onclick="clearBrowserCacheAndStorage()" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);">Reset Storage / Cache</button>
+            <input type="file" id="import-file" style="display:none" accept=".json" onchange="importJSON(event)">
+        </div>
+    </sidebar>
+
+    <main>
+        <header class="top-bar">
+            <div class="page-title">
+                <span id="page-title-text">Stage Team Schedule</span>
+                <span id="sync-status" class="sync-status">Checking Sync...</span>
+            </div>
+            <div class="toolbar" id="top-toolbar">
+                <button class="btn btn-view-toggle" id="view-toggle-btn" onclick="toggleMasterView()">Switch to Master View</button>
+                <button class="btn" onclick="printReport()">Print / PDF (Duplex)</button>
+                <button class="btn btn-primary" id="save-btn" onclick="saveData()">Save & Sync</button>
+            </div>
+        </header>
+        
+        <div class="content-container" id="content-area"></div>
+    </main>
+
+    <div id="staff-context-menu" class="context-menu"></div>
+
+    <script>
+        // Shared cloud storage served by this site (Netlify Function + Netlify Database)
+        const API_URL = "/api/state";
+
+        const VENUES = [
+            "Star Theatre", "Torshavn", "Atrium", "Wintergarden",
+            "Explorer's Lounge", "Cinema 2", "Pool Deck", "Crew Cabins", "Other"
+        ];
+
+        const IPM_COLORS = {
+            blue:   { bg: '#2563eb', text: '#ffffff', label: 'BLUE' },
+            green:  { bg: '#16a34a', text: '#ffffff', label: 'GREEN' },
+            red:    { bg: '#dc2626', text: '#ffffff', label: 'RED' },
+            purple: { bg: '#9333ea', text: '#ffffff', label: 'PURPLE' },
+            white:  { bg: '#f8fafc', text: '#0f172a', label: 'NONE' }
+        };
+
+        const ITINERARY_DATABASE = {
+            "OMA260330": { name: "OMA260330 (Apr 01)", days: { "DAY 1": { port: "Heraklion", date: "2026-04-01" }, "DAY 2": { port: "Rhodes, Nisos Rhodos", date: "2026-04-02" }, "DAY 3": { port: "Kusadasi (Ephesus)", date: "2026-04-03" }, "DAY 4": { port: "Canakkale (Troy)", date: "2026-04-04" }, "DAY 5": { port: "Istanbul (Constantinople)", date: "2026-04-05" } } },
+            "OMA260406": { name: "OMA260406 (Apr 06)", days: { "DAY 1": { port: "Istanbul (Constantinople)", date: "2026-04-06" }, "DAY 2": { port: "Istanbul (Constantinople)", date: "2026-04-07" }, "DAY 3": { port: "Canakkale (Troy)", date: "2026-04-08" }, "DAY 4": { port: "Kusadasi (Ephesus)", date: "2026-04-09" }, "DAY 5": { port: "Rhodes, Nisos Rhodos", date: "2026-04-10" }, "DAY 6": { port: "Heraklion", date: "2026-04-11" }, "DAY 7": { port: "Piraeus (Athens)", date: "2026-04-12" } } },
+            "OMA260413": { name: "OMA260413 (Apr 13)", days: { "DAY 1": { port: "Piraeus (Athens)", date: "2026-04-13" }, "DAY 2": { port: "Katakolon (Olympia)", date: "2026-04-14" }, "DAY 3": { port: "Kérkira, Nisos Kérkira (Corfu)", date: "2026-04-15" }, "DAY 4": { port: "Dubrovnik", date: "2026-04-16" }, "DAY 5": { port: "Zadar", date: "2026-04-17" }, "DAY 6": { port: "Venice", date: "2026-04-18" }, "DAY 7": { port: "Fusina (Venice)", date: "2026-04-19" } } },
+            "OMA260420": { name: "OMA260420 (Apr 20)", days: { "DAY 1": { port: "Fusina (Venice)", date: "2026-04-20" }, "DAY 2": { port: "Split", date: "2026-04-21" }, "DAY 3": { port: "Dubrovnik", date: "2026-04-22" }, "DAY 4": { port: "Kotor", date: "2026-04-23" }, "DAY 5": { port: "Cruising the Ionian Sea", date: "2026-04-24" }, "DAY 6": { port: "Taormina (Sicily)", date: "2026-04-25" }, "DAY 7": { port: "Civitavecchia (Rome)", date: "2026-04-26" } } },
+            "OMA260427": { name: "OMA260427 (Apr 27)", days: { "DAY 1": { port: "Civitavecchia (Rome)", date: "2026-04-27" }, "DAY 2": { port: "Livorno (Florence/Pisa)", date: "2026-04-28" }, "DAY 3": { port: "Monte Carlo", date: "2026-04-29" }, "DAY 4": { port: "Marseille", date: "2026-04-30" }, "DAY 5": { port: "Sète", date: "2026-05-01" }, "DAY 6": { port: "Barcelona", date: "2026-05-02" }, "DAY 7": { port: "Barcelona", date: "2026-05-03" } } },
+            "OMA260504": { name: "OMA260504 (May 04)", days: { "DAY 1": { port: "Barcelona", date: "2026-05-04" }, "DAY 2": { port: "Valencia", date: "2026-05-05" }, "DAY 3": { port: "Cartagena", date: "2026-05-06" }, "DAY 4": { port: "Gibraltar", date: "2026-05-07" }, "DAY 5": { port: "Seville (Cádiz)", date: "2026-05-08" }, "DAY 6": { port: "Portimão", date: "2026-05-09" }, "DAY 7": { port: "Lisbon", date: "2026-05-10" }, "DAY 8": { port: "Porto (Leixões)", date: "2026-05-11" }, "DAY 9": { port: "Vigo", date: "2026-05-12" }, "DAY 10": { port: "Cruising the Bay of Biscay", date: "2026-05-13" }, "DAY 11": { port: "Bordeaux (Le Verdon)", date: "2026-05-14" }, "DAY 12": { port: "London (Greenwich)", date: "2026-05-15" } } },
+            "OMA260516": { name: "OMA260516 (May 16)", days: { "DAY 1": { port: "Chioggia (Venice)", date: "2026-05-16" }, "DAY 2": { port: "Split", date: "2026-05-17" }, "DAY 3": { port: "Dubrovnik", date: "2026-05-18" }, "DAY 4": { port: "Kotor", date: "2026-05-19" }, "DAY 5": { port: "Cruising the Ionian Sea", date: "2026-05-20" }, "DAY 6": { port: "Taormina (Sicily)", date: "2026-05-21" }, "DAY 7": { port: "Civitavecchia (Rome)", date: "2026-05-22" } } },
+            "OMA260525": { name: "OMA260525 (May 25)", days: { "DAY 1": { port: "Piraeus (Athens)", date: "2026-05-25" }, "DAY 2": { port: "Santorini", date: "2026-05-26" }, "DAY 3": { port: "Mykonos", date: "2026-05-27" }, "DAY 4": { port: "Souda Bay (Chania)", date: "2026-05-28" }, "DAY 5": { port: "Rhodes", date: "2026-05-29" }, "DAY 6": { port: "Bodrum", date: "2026-05-30" }, "DAY 7": { port: "Ephesus (Kusadasi)", date: "2026-05-31" } } },
+            "OMA260601": { name: "OMA260601 (Jun 01)", days: { "DAY 1": { port: "Civitavecchia (Rome)", date: "2026-06-01" }, "DAY 2": { port: "Livorno", date: "2026-06-02" }, "DAY 3": { port: "Portofino", date: "2026-06-03" }, "DAY 4": { port: "Monte Carlo", date: "2026-06-04" }, "DAY 5": { port: "Marseille", date: "2026-06-05" }, "DAY 6": { port: "Palamós", date: "2026-06-06" }, "DAY 7": { port: "Barcelona", date: "2026-06-07" } } },
+            "OMA260608": { name: "OMA260608 (Jun 08)", days: { "DAY 1": { port: "Tarragona", date: "2026-06-08" }, "DAY 2": { port: "Valencia", date: "2026-06-09" }, "DAY 3": { port: "Palma de Mallorca", date: "2026-06-10" }, "DAY 4": { port: "Ibiza", date: "2026-06-11" }, "DAY 5": { port: "Alghero (Sardinia)", date: "2026-06-12" }, "DAY 6": { port: "Ajaccio", date: "2026-06-13" }, "DAY 7": { port: "Civitavecchia (Rome)", date: "2026-06-14" } } },
+            "OMA260622": { name: "OMA260622 (Jun 22)", days: { "DAY 1": { port: "Reykjavik", date: "2026-06-22" }, "DAY 2": { port: "Grundarfjördur", date: "2026-06-23" }, "DAY 3": { port: "Isafjördur", date: "2026-06-24" }, "DAY 4": { port: "Akureyri", date: "2026-06-25" }, "DAY 5": { port: "Husavik", date: "2026-06-26" }, "DAY 6": { port: "Seydisfjördur", date: "2026-06-27" }, "DAY 7": { port: "Djupivogur", date: "2026-06-28" } } },
+            "OMA260629": { name: "OMA260629 (Jun 29)", days: { "DAY 1": { port: "Reykjavik", date: "2026-06-29" }, "DAY 2": { port: "Heimaey (Westman Islands)", date: "2026-06-30" }, "DAY 3": { port: "Qaqortoq", date: "2026-07-01" }, "DAY 4": { port: "Narsarsuaq", date: "2026-07-02" }, "DAY 5": { port: "Paamiut", date: "2026-07-03" }, "DAY 6": { port: "Nuuk", date: "2026-07-04" }, "DAY 7": { port: "Sisimiut", date: "2026-07-05" } } },
+            "OMA260706": { name: "OMA260706 (Jul 06)", days: { "DAY 1": { port: "Reykjavik", date: "2026-07-06" }, "DAY 2": { port: "Grundarfjördur", date: "2026-07-07" }, "DAY 3": { port: "Isafjördur", date: "2026-07-08" }, "DAY 4": { port: "Akureyri", date: "2026-07-09" }, "DAY 5": { port: "Husavik", date: "2026-07-10" }, "DAY 6": { port: "Seydisfjördur", date: "2026-07-11" }, "DAY 7": { port: "Djupivogur", date: "2026-07-12" } } },
+            "OMA260713": { name: "OMA260713 (Jul 13)", days: { "DAY 1": { port: "Reykjavik", date: "2026-07-13" }, "DAY 2": { port: "Heimaey", date: "2026-07-14" }, "DAY 3": { port: "Qaqortoq", date: "2026-07-15" }, "DAY 4": { port: "Narsarsuaq", date: "2026-07-16" }, "DAY 5": { port: "Paamiut", date: "2026-07-17" }, "DAY 6": { port: "Nuuk", date: "2026-07-18" }, "DAY 7": { port: "Sisimiut", date: "2026-07-19" } } },
+            "OMA260720": { name: "OMA260720 (Jul 20)", days: { "DAY 1": { port: "Reykjavik", date: "2026-07-20" }, "DAY 2": { port: "Grundarfjördur", date: "2026-07-21" }, "DAY 3": { port: "Isafjördur", date: "2026-07-22" }, "DAY 4": { port: "Akureyri", date: "2026-07-23" }, "DAY 5": { port: "Husavik", date: "2026-07-24" }, "DAY 6": { port: "Seydisfjördur", date: "2026-07-25" }, "DAY 7": { port: "Djupivogur", date: "2026-07-26" } } },
+            "OMA260727": { name: "OMA260727 (Jul 27)", days: { "DAY 1": { port: "Reykjavik", date: "2026-07-27" }, "DAY 2": { port: "Heimaey", date: "2026-07-28" }, "DAY 3": { port: "Qaqortoq", date: "2026-07-29" }, "DAY 4": { port: "Narsarsuaq", date: "2026-07-30" }, "DAY 5": { port: "Paamiut", date: "2026-07-31" }, "DAY 6": { port: "Nuuk", date: "2026-08-01" }, "DAY 7": { port: "Sisimiut", date: "2026-08-02" } } },
+            "OMA260803": { name: "OMA260803 (Aug 03)", days: { "DAY 1": { port: "Reykjavik", date: "2026-08-03" }, "DAY 2": { port: "Grundarfjördur", date: "2026-08-04" }, "DAY 3": { port: "Isafjördur", date: "2026-08-05" }, "DAY 4": { port: "Akureyri", date: "2026-08-06" }, "DAY 5": { port: "Husavik", date: "2026-08-07" }, "DAY 6": { port: "Seydisfjördur", date: "2026-08-08" }, "DAY 7": { port: "Djupivogur", date: "2026-08-09" } } },
+            "OMA260810": { name: "OMA260810 (Aug 10)", days: { "DAY 1": { port: "Reykjavik", date: "2026-08-10" }, "DAY 2": { port: "Heimaey", date: "2026-08-11" }, "DAY 3": { port: "Qaqortoq", date: "2026-08-12" }, "DAY 4": { port: "Narsarsuaq", date: "2026-08-13" }, "DAY 5": { port: "Paamiut", date: "2026-08-14" }, "DAY 6": { port: "Nuuk", date: "2026-08-15" }, "DAY 7": { port: "Sisimiut", date: "2026-08-16" } } },
+            "OMA260817": { name: "OMA260817 (Aug 17)", days: { "DAY 1": { port: "Reykjavik", date: "2026-08-17" }, "DAY 2": { port: "Grundarfjördur", date: "2026-08-18" }, "DAY 3": { port: "Isafjördur", date: "2026-08-19" }, "DAY 4": { port: "Akureyri", date: "2026-08-20" }, "DAY 5": { port: "Husavik", date: "2026-08-21" }, "DAY 6": { port: "Seydisfjördur", date: "2026-08-22" }, "DAY 7": { port: "Djupivogur", date: "2026-08-23" } } },
+            "OMA260831": { name: "OMA260831 (Aug 31)", days: { "DAY 1": { port: "New York, Manhattan, NY", date: "2026-08-31" }, "DAY 2": { port: "Newport", date: "2026-09-01" }, "DAY 3": { port: "Boston", date: "2026-09-02" }, "DAY 4": { port: "Bar Harbor", date: "2026-09-03" }, "DAY 5": { port: "Halifax", date: "2026-09-04" }, "DAY 6": { port: "Quebec", date: "2026-09-05" }, "DAY 7": { port: "Montreal", date: "2026-09-06" } } },
+            "OMA260912": { name: "OMA260912 (Sep 12)", days: { "DAY 1": { port: "Montreal, Quebec", date: "2026-09-12" }, "DAY 2": { port: "Quebec City", date: "2026-09-13" }, "DAY 3": { port: "Saguenay", date: "2026-09-14" }, "DAY 4": { port: "Gaspe", date: "2026-09-15" }, "DAY 5": { port: "Charlottetown", date: "2026-09-16" }, "DAY 6": { port: "Sydney", date: "2026-09-17" }, "DAY 7": { port: "Halifax", date: "2026-09-18" } } },
+            "OMA260924": { name: "OMA260924 (Sep 24)", days: { "DAY 1": { port: "New York, Brooklyn, NY", date: "2026-09-24" }, "DAY 2": { port: "Boston", date: "2026-09-25" }, "DAY 3": { port: "Bar Harbor", date: "2026-09-26" }, "DAY 4": { port: "Halifax", date: "2026-09-27" }, "DAY 5": { port: "Quebec City", date: "2026-09-28" }, "DAY 6": { port: "Montreal", date: "2026-09-29" } } },
+            "OMA261006": { name: "OMA261006 (Oct 06)", days: { "DAY 1": { port: "Montreal, Quebec", date: "2026-10-06" }, "DAY 2": { port: "Quebec City", date: "2026-10-07" }, "DAY 3": { port: "Saguenay", date: "2026-10-08" }, "DAY 4": { port: "Gaspe", date: "2026-10-09" }, "DAY 5": { port: "Charlottetown", date: "2026-10-10" }, "DAY 6": { port: "Sydney", date: "2026-10-11" }, "DAY 7": { port: "Halifax", date: "2026-10-12" } } },
+            "OMA261020": { name: "OMA261020 (Oct 20)", days: { "DAY 1": { port: "Fort Lauderdale, FL", date: "2026-10-20" }, "DAY 2": { port: "Nassau", date: "2026-10-21" }, "DAY 3": { port: "Half Moon Cay", date: "2026-10-22" }, "DAY 4": { port: "Grand Turk", date: "2026-10-23" }, "DAY 5": { port: "San Juan", date: "2026-10-24" } } },
+            "OMA261103": { name: "OMA261103 (Nov 03)", days: { "DAY 1": { port: "Fort Lauderdale, FL", date: "2026-11-03" }, "DAY 2": { port: "Cruise the Caribbean Sea", date: "2026-11-04" }, "DAY 3": { port: "Cruise the Caribbean Sea", date: "2026-11-05" }, "DAY 4": { port: "Cozumel, Quintana Roo", date: "2026-11-06" }, "DAY 5": { port: "Belize City", date: "2026-11-07" }, "DAY 6": { port: "Coxen Hole, Roatán", date: "2026-11-08" }, "DAY 7": { port: "Cruise the Caribbean Sea", date: "2026-11-09" }, "DAY 8": { port: "Puerto Limón", date: "2026-11-10" }, "DAY 9": { port: "Colon", date: "2026-11-11" }, "DAY 10": { port: "Enter / Exit Panama Canal", date: "2026-11-12" } } },
+            "OMA261113": { name: "OMA261113 (Nov 13)", days: { "DAY 1": { port: "Fuerte Amador (Panama City)", date: "2026-11-13" }, "DAY 2": { port: "Enter / Exit Panama Canal", date: "2026-11-14" }, "DAY 3": { port: "Cartagena", date: "2026-11-15" }, "DAY 4": { port: "Cruising the Caribbean Sea", date: "2026-11-16" }, "DAY 5": { port: "Oranjestad", date: "2026-11-17" }, "DAY 6": { port: "Willemstad", date: "2026-11-18" }, "DAY 7": { port: "Kralendijk", date: "2026-11-19" }, "DAY 8": { port: "Cruising the Caribbean Sea", date: "2026-11-20" }, "DAY 9": { port: "St. George's", date: "2026-11-21" }, "DAY 10": { port: "Bridgetown", date: "2026-11-22" } } },
+            "OMA261123": { name: "OMA261123 (Nov 23)", days: { "DAY 1": { port: "Fort Lauderdale, FL", date: "2026-11-23" }, "DAY 2": { port: "Nassau", date: "2026-11-24" }, "DAY 3": { port: "Half Moon Cay", date: "2026-11-25" }, "DAY 4": { port: "Grand Turk", date: "2026-11-26" }, "DAY 5": { port: "San Juan", date: "2026-11-27" } } },
+            "OMA261207": { name: "OMA261207 (Dec 07)", days: { "DAY 1": { port: "Fort Lauderdale, FL", date: "2026-12-07" }, "DAY 2": { port: "Nassau", date: "2026-12-08" }, "DAY 3": { port: "Half Moon Cay", date: "2026-12-09" }, "DAY 4": { port: "Grand Turk", date: "2026-12-10" }, "DAY 5": { port: "San Juan", date: "2026-12-11" } } },
+            "OMA261217": { name: "OMA261217 (Dec 17)", days: { "DAY 1": { port: "Fuerte Amador (Panama City)", date: "2026-12-17" }, "DAY 2": { port: "Enter / Exit Panama Canal", date: "2026-12-18" }, "DAY 3": { port: "Cartagena", date: "2026-12-19" }, "DAY 4": { port: "Cruising the Caribbean Sea", date: "2026-12-20" }, "DAY 5": { port: "Oranjestad", date: "2026-12-21" } } }
+        };
+
+        let appData = {
+            currentTab: 'schedule',
+            currentCruise: "OMA261217",
+            currentCruisePinned: "OMA261217",
+            isMasterView: false,
+            globalStaffMeta: {},
+            cruises: {},
+            notes: ""
+        };
+
+        let undoStack = [];
+        const MAX_HISTORY = 20;
+
+        function setSyncBadge(text, isWarn = false) {
+            const el = document.getElementById('sync-status');
+            if (!el) return;
+            el.textContent = text;
+            el.className = isWarn ? 'sync-status warn' : 'sync-status';
+        }
+
+        function pushState() {
+            const currentState = JSON.stringify(appData);
+            if (undoStack.length > 0 && undoStack[undoStack.length - 1] === currentState) return;
+            undoStack.push(currentState);
+            if (undoStack.length > MAX_HISTORY) undoStack.shift();
+        }
+
+        function undoAction() {
+            if (undoStack.length === 0) return;
+            const previousState = undoStack.pop();
+            if (previousState) {
+                appData = JSON.parse(previousState);
+                autoSave();
+                render();
+            }
+        }
+
+        window.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undoAction();
+            }
+        });
+
+        window.addEventListener('click', function() {
+            hideStaffContextMenu();
+        });
+
+        function getGlobalStaffMeta(staff) {
+            if (!appData.globalStaffMeta[staff]) {
+                appData.globalStaffMeta[staff] = { role: "", phone: "", ipm: "green", roleLocked: false };
+            }
+            if (appData.globalStaffMeta[staff].roleLocked === undefined) {
+                appData.globalStaffMeta[staff].roleLocked = false;
+            }
+            return appData.globalStaffMeta[staff];
+        }
+
+        function getActiveCruiseObj() {
+            if (!appData.cruises[appData.currentCruise]) {
+                let itData = ITINERARY_DATABASE[appData.currentCruise];
+                let totalDaysCount = itData ? Object.keys(itData.days).length : 6;
+                
+                appData.cruises[appData.currentCruise] = {
+                    totalDays: totalDaysCount,
+                    activeDay: 'DAY 1',
+                    crewDay: 'DAY 1',
+                    activeStaff: 'ALEX',
+                    staffMembers: ["ALEX", "JOVAN", "NALA", "JOSEPH"],
+                    inactiveStaffMembers: [],
+                    dayMeta: {},
+                    ipmByDay: {},
+                    schedules: {}
+                };
+            }
+            if (!appData.cruises[appData.currentCruise].crewDay) {
+                appData.cruises[appData.currentCruise].crewDay = 'DAY 1';
+            }
+            return appData.cruises[appData.currentCruise];
+        }
+
+        function initAppData() {
+            let cruise = getActiveCruiseObj();
+            if (!cruise.staffMembers || !cruise.staffMembers.length) {
+                if (!cruise.inactiveStaffMembers || !cruise.inactiveStaffMembers.length) {
+                    cruise.staffMembers = ["ALEX", "JOVAN", "NALA", "JOSEPH"];
+                } else {
+                    cruise.staffMembers = [];
+                }
+            }
+            if (!cruise.inactiveStaffMembers) cruise.inactiveStaffMembers = [];
+            if (!appData.globalStaffMeta) appData.globalStaffMeta = {};
+            if (!appData.currentCruisePinned) appData.currentCruisePinned = "OMA261217";
+            if (appData.isMasterView === undefined) appData.isMasterView = false;
+            if (!cruise.schedules) cruise.schedules = {};
+            if (!cruise.ipmByDay) cruise.ipmByDay = {};
+            if (!cruise.dayMeta) cruise.dayMeta = {};
+
+            let allStaffNames = [...cruise.staffMembers, ...cruise.inactiveStaffMembers];
+            allStaffNames.forEach(st => {
+                let meta = getGlobalStaffMeta(st);
+                if (!meta.ipmByDay) meta.ipmByDay = {};
+            });
+
+            let itinerariesForCruise = ITINERARY_DATABASE[appData.currentCruise] ? ITINERARY_DATABASE[appData.currentCruise].days : {};
+
+            for (let i = 1; i <= cruise.totalDays; i++) {
+                let dayName = `DAY ${i}`;
+                if (!cruise.schedules[dayName]) cruise.schedules[dayName] = {};
+                
+                if (!cruise.dayMeta[dayName]) {
+                    cruise.dayMeta[dayName] = itinerariesForCruise[dayName] || { port: `Port ${i}`, date: `2026-12-17` };
+                } else {
+                    if (itinerariesForCruise[dayName]) {
+                        if (!cruise.dayMeta[dayName].port || cruise.dayMeta[dayName].port.startsWith("Port")) {
+                            cruise.dayMeta[dayName].port = itinerariesForCruise[dayName].port;
+                        }
+                        if (!cruise.dayMeta[dayName].date) {
+                            cruise.dayMeta[dayName].date = itinerariesForCruise[dayName].date;
+                        }
+                    }
+                }
+
+                if (!cruise.ipmByDay[dayName] || !IPM_COLORS[cruise.ipmByDay[dayName]]) {
+                    cruise.ipmByDay[dayName] = 'green';
+                }
+
+                allStaffNames.forEach(staff => {
+                    let sMeta = getGlobalStaffMeta(staff);
+                    if (!sMeta.ipmByDay[dayName] || !IPM_COLORS[sMeta.ipmByDay[dayName]]) {
+                        sMeta.ipmByDay[dayName] = 'green';
+                    }
+
+                    if (!cruise.schedules[dayName][staff]) {
+                        cruise.schedules[dayName][staff] = [];
+                    }
+                });
+            }
+        }
+
+        function resetToDefault() {
+            if (!confirm("Are you sure you want to clear all rows for the current day?")) return;
+            pushState();
+            let cruise = getActiveCruiseObj();
+            cruise.schedules[cruise.activeDay][cruise.activeStaff] = [];
+            autoSave();
+            render();
+        }
+
+        function clearAllRowsForStaff(staff) {
+            if (!confirm(`Are you sure you want to clear all rows for ${staff} on this day?`)) return;
+            pushState();
+            let cruise = getActiveCruiseObj();
+            if (cruise.schedules[cruise.activeDay]) {
+                cruise.schedules[cruise.activeDay][staff] = [];
+            }
+            autoSave();
+            render();
+        }
+
+        function clearBrowserCacheAndStorage() {
+            if (confirm("Reset local storage and clear cached app state?")) {
+                localStorage.removeItem('stage_manager_app_v43');
+                location.reload(true);
+            }
+        }
+
+        async function loadStorage() {
+            const saved = localStorage.getItem('stage_manager_app_v43');
+            if (saved) {
+                try { appData = JSON.parse(saved); } catch(e) {}
+            }
+            initAppData();
+            render();
+
+            try {
+                setSyncBadge("Syncing from Cloud...");
+                let response = await fetch(API_URL, { cache: "no-store" });
+                if (!response.ok) throw new Error("HTTP " + response.status);
+                let cloudData = await response.json();
+                if (cloudData && cloudData.cruises && Object.keys(cloudData).length > 0) {
+                    appData = cloudData;
+                    initAppData();
+                    localStorage.setItem('stage_manager_app_v43', JSON.stringify(appData));
+                    undoStack = [];
+                    render();
+                    cloudLoaded = true;
+                    setSyncBadge("Cloud Connected");
+                } else {
+                    cloudLoaded = true;
+                    // Cloud is empty: publish this device's schedule so the Crew Portal can load it.
+                    await uploadToCloud();
+                }
+            } catch (e) {
+                console.error("Cloud load failed:", e);
+                setSyncBadge("Offline / Local Mode", true);
+            }
+        }
+
+        let cloudSyncTimer = null;
+        let cloudLoaded = false; // never upload before the shared copy has been read
+        function autoSave() {
+            localStorage.setItem('stage_manager_app_v43', JSON.stringify(appData));
+            setSyncBadge("Unsaved Cloud Changes", true);
+            // Automatically push changes to the cloud shortly after editing stops.
+            clearTimeout(cloudSyncTimer);
+            if (cloudLoaded) cloudSyncTimer = setTimeout(() => { uploadToCloud(); }, 1500);
+        }
+
+        async function uploadToCloud() {
+            try {
+                setSyncBadge("Uploading...");
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(appData)
+                });
+                if (!res.ok) throw new Error("Upload failed: " + res.status);
+                setSyncBadge("Cloud Synced");
+                return true;
+            } catch (e) {
+                console.error("Cloud upload failed:", e);
+                setSyncBadge("Sync Error", true);
+                return false;
+            }
+        }
+
+        async function saveData() {
+            clearTimeout(cloudSyncTimer);
+            localStorage.setItem('stage_manager_app_v43', JSON.stringify(appData));
+
+            let btn = document.getElementById('save-btn');
+            if (btn) btn.textContent = "Syncing...";
+            setSyncBadge("Uploading...");
+
+            try {
+                const res = await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(appData)
+                });
+                if (!res.ok) throw new Error("Upload failed: " + res.status);
+                setSyncBadge("Cloud Synced");
+                if (btn) btn.textContent = "Saved!";
+                setTimeout(() => { if (btn) btn.textContent = "Save & Sync"; }, 2000);
+            } catch (err) {
+                setSyncBadge("Sync Error", true);
+                if (btn) btn.textContent = "Save & Sync";
+                alert("Saved locally, but failed to upload to the cloud. Check your connection and try again.");
+            }
+        }
+
+        function switchTab(tabId) {
+            pushState();
+            appData.currentTab = tabId;
+            autoSave();
+            render();
+        }
+
+        function toggleMasterView() {
+            pushState();
+            appData.isMasterView = !appData.isMasterView;
+            autoSave();
+            render();
+        }
+
+        function changeCruise(cruiseCode) {
+            pushState();
+            appData.currentCruise = cruiseCode;
+            initAppData();
+            autoSave();
+            render();
+        }
+
+        function togglePinCruise(e, code) {
+            e.stopPropagation();
+            pushState();
+            appData.currentCruisePinned = (appData.currentCruisePinned === code) ? "" : code;
+            autoSave();
+            render();
+        }
+
+        function toggleCruisesDropdown() {
+            let list = document.getElementById('sidebar-cruises-list');
+            let arrow = document.getElementById('cruises-arrow');
+            if (list.style.display === 'none') {
+                list.style.display = 'block';
+                arrow.textContent = '▲';
+            } else {
+                list.style.display = 'none';
+                arrow.textContent = '▼';
+            }
+        }
+
+        function setActiveDay(day) {
+            pushState();
+            getActiveCruiseObj().activeDay = day;
+            autoSave();
+            render();
+        }
+
+        function setCrewDay(day, event) {
+            event.stopPropagation();
+            pushState();
+            getActiveCruiseObj().crewDay = day;
+            autoSave();
+            render();
+        }
+
+        function setActiveStaff(staff) {
+            pushState();
+            getActiveCruiseObj().activeStaff = staff;
+            autoSave();
+            render();
+        }
+
+        function updateStaffMeta(staff, field, value) {
+            let meta = getGlobalStaffMeta(staff);
+            if (field === 'ipm') {
+                pushState();
+                if (!meta.ipmByDay) meta.ipmByDay = {};
+                meta.ipmByDay[getActiveCruiseObj().activeDay] = value;
+                autoSave();
+                render();
+            } else {
+                meta[field] = value;
+                autoSave();
+            }
+        }
+
+        function lockRole(staff) {
+            pushState();
+            getGlobalStaffMeta(staff).roleLocked = true;
+            autoSave();
+            render();
+        }
+
+        function unlockRole(staff) {
+            pushState();
+            getGlobalStaffMeta(staff).roleLocked = false;
+            autoSave();
+            render();
+        }
+
+        function hideStaffContextMenu() {
+            const menu = document.getElementById('staff-context-menu');
+            if (menu) menu.style.display = 'none';
+        }
+
+        function handleStaffRightClick(event, staff) {
+            showStaffContextMenu(event, staff, false);
+        }
+
+        function handleInactiveStaffRightClick(event, staff) {
+            showStaffContextMenu(event, staff, true);
+        }
+
+        function showStaffContextMenu(event, staff, isInactive) {
+            event.preventDefault();
+            event.stopPropagation();
+            const menu = document.getElementById('staff-context-menu');
+            if (!menu) return;
+
+            let html = isInactive 
+                ? `<div class="context-menu-item" onclick="activateStaffMember('${staff}')">Activate</div>`
+                : `<div class="context-menu-item" onclick="archiveStaffMember('${staff}')">Archive</div>`;
+            html += `<div class="context-menu-item danger" onclick="deleteStaffMember('${staff}')">Delete</div>`;
+
+            menu.innerHTML = html;
+            menu.style.display = 'block';
+            menu.style.left = `${Math.min(event.clientX, window.innerWidth - 160)}px`;
+            menu.style.top = `${Math.min(event.clientY, window.innerHeight - 90)}px`;
+        }
+
+        function archiveStaffMember(staff) {
+            hideStaffContextMenu();
+            pushState();
+            let cruise = getActiveCruiseObj();
+            cruise.staffMembers = cruise.staffMembers.filter(s => s !== staff);
+            if (!cruise.inactiveStaffMembers.includes(staff)) cruise.inactiveStaffMembers.push(staff);
+            if (cruise.activeStaff === staff) {
+                cruise.activeStaff = cruise.staffMembers[0] || cruise.inactiveStaffMembers[0] || "";
+            }
+            autoSave();
+            render();
+        }
+
+        function activateStaffMember(staff) {
+            hideStaffContextMenu();
+            pushState();
+            let cruise = getActiveCruiseObj();
+            cruise.inactiveStaffMembers = cruise.inactiveStaffMembers.filter(s => s !== staff);
+            if (!cruise.staffMembers.includes(staff)) cruise.staffMembers.push(staff);
+            cruise.activeStaff = staff;
+            autoSave();
+            render();
+        }
+
+        function deleteStaffMember(staff) {
+            hideStaffContextMenu();
+            if (!confirm(`Delete crew member "${staff}" permanently?`)) return;
+            pushState();
+            let cruise = getActiveCruiseObj();
+            cruise.staffMembers = cruise.staffMembers.filter(s => s !== staff);
+            cruise.inactiveStaffMembers = cruise.inactiveStaffMembers.filter(s => s !== staff);
+            Object.keys(cruise.schedules).forEach(day => {
+                if (cruise.schedules[day]?.[staff]) delete cruise.schedules[day][staff];
+            });
+            if (cruise.activeStaff === staff) {
+                cruise.activeStaff = cruise.staffMembers[0] || cruise.inactiveStaffMembers[0] || "";
+            }
+            autoSave();
+            render();
+        }
+
+        function addStaffMember() {
+            const name = prompt("Enter new staff member name:");
+            if (!name) return;
+            const cleanName = name.trim().toUpperCase();
+            let cruise = getActiveCruiseObj();
+            if (!cleanName || cruise.staffMembers.includes(cleanName) || cruise.inactiveStaffMembers.includes(cleanName)) {
+                alert("Invalid or already existing staff member!");
+                return;
+            }
+            pushState();
+            cruise.staffMembers.push(cleanName);
+            getGlobalStaffMeta(cleanName);
+            cruise.activeStaff = cleanName;
+            initAppData();
+            autoSave();
+            render();
+        }
+
+        function changeTotalDays(delta) {
+            let cruise = getActiveCruiseObj();
+            if (cruise.totalDays + delta < 1 || cruise.totalDays + delta > 30) return;
+            pushState();
+            cruise.totalDays += delta;
+            let currentDayNum = parseInt(cruise.activeDay.replace('DAY ', ''));
+            if (currentDayNum > cruise.totalDays) cruise.activeDay = `DAY ${cruise.totalDays}`;
+            initAppData();
+            autoSave();
+            render();
+        }
+
+        function timeToMinutes(tStr) {
+            if (!tStr || typeof tStr !== 'string' || !tStr.includes(':')) return 9999;
+            let parts = tStr.trim().split(':');
+            let h = parseInt(parts[0], 10);
+            let m = parseInt(parts[1], 10);
+            if (isNaN(h) || isNaN(m)) return 9999;
+            if (h >= 0 && h < 4) h += 24;
+            return h * 60 + m;
+        }
+
+        function updateRow(staff, index, field, value) {
+            let cruise = getActiveCruiseObj();
+            if (cruise.schedules[cruise.activeDay]?.[staff]?.[index]) {
+                cruise.schedules[cruise.activeDay][staff][index][field] = value;
+                autoSave();
+            }
+        }
+
+        function handleTimeBlur(staff, index) {
+            pushState();
+            let cruise = getActiveCruiseObj();
+            let rows = cruise.schedules[cruise.activeDay][staff];
+            if (rows?.[index]) {
+                rows.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+                autoSave();
+                render();
+            }
+        }
+
+        function removeRow(staff, index) {
+            pushState();
+            getActiveCruiseObj().schedules[getActiveCruiseObj().activeDay][staff].splice(index, 1);
+            autoSave();
+            render();
+        }
+
+        function addEmptyRowForStaff(staff) {
+            pushState();
+            let cruise = getActiveCruiseObj();
+            if (!cruise.schedules[cruise.activeDay][staff]) cruise.schedules[cruise.activeDay][staff] = [];
+            cruise.schedules[cruise.activeDay][staff].push({ time: "", event: "", venue: "Star Theatre", details: "", applied: false });
+            autoSave();
+            render();
+        }
+
+        function addEmptyRow() {
+            addEmptyRowForStaff(getActiveCruiseObj().activeStaff);
+        }
+
+        function addRowBelow(staff, index) {
+            pushState();
+            let cruise = getActiveCruiseObj();
+            let rows = cruise.schedules[cruise.activeDay][staff];
+            let currentRow = rows[index];
+            let nextTimeStr = "";
+            if (currentRow?.time?.includes(':')) {
+                let [h, m] = currentRow.time.split(':').map(v => parseInt(v, 10));
+                if (!isNaN(h) && !isNaN(m)) {
+                    let totalMins = (h * 60 + m + 15) % 1440;
+                    nextTimeStr = String(Math.floor(totalMins / 60)).padStart(2, '0') + ':' + String(totalMins % 60).padStart(2, '0');
+                }
+            }
+            rows.splice(index + 1, 0, { time: nextTimeStr, event: "", venue: currentRow ? currentRow.venue : "Star Theatre", details: "", applied: false });
+            rows.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+            autoSave();
+            render();
+        }
+
+        function applyToAllStaff(index, currentStaff) {
+            let cruise = getActiveCruiseObj();
+            let activeDay = cruise.activeDay;
+            let sourceRow = cruise.schedules[activeDay][currentStaff][index];
+            if (!sourceRow.event && !sourceRow.time) {
+                alert("Please fill in Time and Event before applying to ALL.");
+                return;
+            }
+            pushState();
+            sourceRow.applied = true;
+            cruise.staffMembers.forEach(staff => {
+                if (staff === currentStaff) return;
+                if (!cruise.schedules[activeDay][staff]) cruise.schedules[activeDay][staff] = [];
+                let targetRows = cruise.schedules[activeDay][staff];
+                let existing = targetRows.find(r => r.time === sourceRow.time && !r.event);
+                let newRowData = { time: sourceRow.time, event: sourceRow.event, venue: sourceRow.venue, details: sourceRow.details, applied: true };
+                if (existing) {
+                    Object.assign(existing, newRowData);
+                } else {
+                    targetRows.push(newRowData);
+                }
+                targetRows.sort((a, b) => timeToMinutes(a.time) - timeToMinutes(b.time));
+            });
+            autoSave();
+            render();
+        }
+
+        function updateMeta(field, value) {
+            let cruise = getActiveCruiseObj();
+            if (!cruise.dayMeta[cruise.activeDay]) cruise.dayMeta[cruise.activeDay] = { port: "", date: "" };
+            cruise.dayMeta[cruise.activeDay][field] = value;
+            autoSave();
+        }
+
+        function updateIpmColor(val) {
+            pushState();
+            let cruise = getActiveCruiseObj();
+            if (IPM_COLORS[val]) {
+                cruise.ipmByDay[cruise.activeDay] = val;
+                autoSave();
+                render();
+            }
+        }
+
+        function render() {
+            const titleEl = document.getElementById('page-title-text');
+            const area = document.getElementById('content-area');
+            const toolbarEl = document.getElementById('top-toolbar');
+            if (!area) return;
+
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            if (appData.currentTab === 'schedule') document.getElementById('menu-schedule')?.classList.add('active');
+            if (appData.currentTab === 'notes') document.getElementById('menu-notes')?.classList.add('active');
+
+            let cruise = getActiveCruiseObj();
+
+            let pinnedEl = document.getElementById('sidebar-pinned-cruise');
+            if (appData.currentCruisePinned && ITINERARY_DATABASE[appData.currentCruisePinned]) {
+                let code = appData.currentCruisePinned;
+                let isActive = (appData.currentTab === 'schedule' && appData.currentCruise === code);
+                pinnedEl.innerHTML = `
+                    <div style="padding: 10px 10px 0 10px;">
+                        <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; font-weight: 600;">Current Cruise</div>
+                        <div class="nav-item-pinned ${isActive ? 'active' : ''}" onclick="switchTab('schedule'); changeCruise('${code}')">
+                            <span>${code}</span>
+                            <label class="cruise-checkbox-label" onclick="event.stopPropagation()">
+                                <input type="checkbox" checked onchange="togglePinCruise(event, '${code}')"> Current
+                            </label>
+                        </div>
+                    </div>
+                `;
+            } else {
+                pinnedEl.innerHTML = '';
+            }
+
+            let sidebarCruisesEl = document.getElementById('sidebar-cruises-list');
+            let sidebarHtml = '';
+            Object.keys(ITINERARY_DATABASE).forEach(code => {
+                if (code === appData.currentCruisePinned) return;
+                let isActive = (appData.currentTab === 'schedule' && appData.currentCruise === code);
+                sidebarHtml += `
+                    <div class="nav-item ${isActive ? 'active' : ''}" onclick="switchTab('schedule'); changeCruise('${code}')">
+                        <span>${code}</span>
+                        <label class="cruise-checkbox-label" onclick="event.stopPropagation()">
+                            <input type="checkbox" onchange="togglePinCruise(event, '${code}')"> Current
+                        </label>
+                    </div>
+                `;
+            });
+            sidebarCruisesEl.innerHTML = sidebarHtml;
+
+            let inactiveSectionEl = document.getElementById('sidebar-inactive-section');
+            if (cruise.inactiveStaffMembers?.length > 0) {
+                let inactiveHtml = `<li class="nav-section-title" style="margin-top: 15px;">Inactive Crew (${cruise.inactiveStaffMembers.length})</li>`;
+                cruise.inactiveStaffMembers.forEach(staff => {
+                    let isSelected = (appData.currentTab === 'schedule' && cruise.activeStaff === staff);
+                    inactiveHtml += `<li class="nav-item-inactive ${isSelected ? 'active' : ''}" onclick="switchTab('schedule'); setActiveStaff('${staff}')" oncontextmenu="handleInactiveStaffRightClick(event, '${staff}')">${staff}</li>`;
+                });
+                inactiveSectionEl.innerHTML = inactiveHtml;
+            } else {
+                inactiveSectionEl.innerHTML = '';
+            }
+
+            if (appData.currentTab === 'schedule') {
+                toolbarEl.style.display = 'flex';
+                if (appData.isMasterView) {
+                    document.getElementById('view-toggle-btn').textContent = "Switch to Person View";
+                    titleEl.textContent = `Master Schedule Summary (${appData.currentCruise})`;
+                } else {
+                    document.getElementById('view-toggle-btn').textContent = "Switch to Master View";
+                    titleEl.textContent = `Stage Team Schedule (${appData.currentCruise})`;
+                }
+
+                let daysHtml = '<div class="days-tabs">';
+                for (let i = 1; i <= cruise.totalDays; i++) {
+                    let d = `DAY ${i}`;
+                    let isSelectedDay = (cruise.activeDay === d);
+                    let isCrewDay = (cruise.crewDay === d);
+                    daysHtml += `
+                        <div class="day-tab-wrapper ${isSelectedDay ? 'active' : ''}">
+                            <input type="checkbox" class="crew-broadcast-checkbox" ${isCrewDay ? 'checked' : ''} title="Show this day in Crew Portal" onchange="setCrewDay('${d}', event)">
+                            <button class="day-tab ${isSelectedDay ? 'active' : ''}" onclick="setActiveDay('${d}')">${d}</button>
+                        </div>
+                    `;
+                }
+                daysHtml += `
+                    <div style="margin-left: auto; display: flex; gap: 6px; align-items: center;">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Days: ${cruise.totalDays}</span>
+                        <button class="btn" style="padding: 2px 8px;" onclick="changeTotalDays(-1)">-</button>
+                        <button class="btn" style="padding: 2px 8px;" onclick="changeTotalDays(1)">+</button>
+                    </div>
+                `;
+                daysHtml += '</div>';
+
+                let currentMeta = cruise.dayMeta[cruise.activeDay] || { port: "", date: "" };
+
+                if (appData.isMasterView) {
+                    let masterHtml = `<div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 12px;">${daysHtml}</div>`;
+                    cruise.staffMembers.forEach(staff => {
+                        let sMeta = getGlobalStaffMeta(staff);
+                        let sIpmKey = sMeta.ipmByDay?.[cruise.activeDay] || 'green';
+                        let sIpmStyle = IPM_COLORS[sIpmKey] || IPM_COLORS.green;
+                        let sRows = cruise.schedules[cruise.activeDay]?.[staff] || [];
+                        
+                        let staffRowsHtml = '';
+                        if (sRows.length === 0) {
+                            staffRowsHtml = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 15px;">No entries. Click <b>+ Add Row</b> below.</td></tr>`;
+                        } else {
+                            sRows.forEach((row, idx) => {
+                                let isStandardVenue = VENUES.includes(row.venue);
+                                let selectVal = isStandardVenue ? row.venue : "Other";
+                                let venueOptions = VENUES.map(v => `<option value="${v}" ${selectVal === v ? 'selected' : ''}>${v}</option>`).join('');
+                                staffRowsHtml += `
+                                    <tr>
+                                        <td class="col-all"><button class="btn-all ${row.applied ? 'applied' : ''}" onclick="applyToAllStaff(${idx}, '${staff}')">ALL</button></td>
+                                        <td class="col-time"><input type="text" value="${row.time || ''}" placeholder="Time" oninput="updateRow('${staff}', ${idx}, 'time', this.value)" onblur="handleTimeBlur('${staff}', ${idx})"><button class="btn-success-soft" onclick="addRowBelow('${staff}', ${idx})">+</button></td>
+                                        <td class="col-event"><textarea class="table-textarea" placeholder="Event" oninput="updateRow('${staff}', ${idx}, 'event', this.value)">${row.event || ''}</textarea></td>
+                                        <td class="col-venue">
+                                            <select onchange="if(this.value==='Other'){updateRow('${staff}', ${idx}, 'venue', '');}else{updateRow('${staff}', ${idx}, 'venue', this.value);}render();">${venueOptions}</select>
+                                            ${!isStandardVenue ? `<input type="text" style="margin-top: 4px;" value="${row.venue || ''}" placeholder="Custom" oninput="updateRow('${staff}', ${idx}, 'venue', this.value)">` : ''}
+                                        </td>
+                                        <td class="col-details"><textarea class="table-textarea" placeholder="Details" oninput="updateRow('${staff}', ${idx}, 'details', this.value)">${row.details || ''}</textarea></td>
+                                        <td class="col-action"><button class="btn-danger-soft" onclick="removeRow('${staff}', ${idx})">-</button></td>
+                                    </tr>
+                                `;
+                            });
+                        }
+
+                        let staffIpmOptions = Object.keys(IPM_COLORS).map(k => `<option value="${k}" ${sIpmKey === k ? 'selected' : ''}>${IPM_COLORS[k].label}</option>`).join('');
+                        masterHtml += `
+                            <div class="card">
+                                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                                    <div class="card-staff-info">
+                                        <h3>${staff}</h3>
+                                        <div class="ipm-badge-sm" style="background-color: ${sIpmStyle.bg}; color: ${sIpmStyle.text};">
+                                            <span>IPM:</span><select onchange="updateStaffMeta('${staff}', 'ipm', this.value)">${staffIpmOptions}</select>
+                                        </div>
+                                        <div class="staff-meta-field"><span>Role:</span><input type="text" ${sMeta.roleLocked ? 'disabled' : ''} value="${sMeta.role || ''}" oninput="updateStaffMeta('${staff}', 'role', this.value)"></div>
+                                        <div class="staff-meta-field"><span>DECT:</span><input type="text" ${sMeta.roleLocked ? 'disabled' : ''} value="${sMeta.phone || ''}" oninput="updateStaffMeta('${staff}', 'phone', this.value)"></div>
+                                        <div class="staff-meta-field">
+                                            <button class="btn-edit-role" onclick="lockRole('${staff}')">💾</button>
+                                            <button class="btn-edit-role" onclick="unlockRole('${staff}')">✏️</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <button class="btn" onclick="addEmptyRowForStaff('${staff}')">+ Add Row</button>
+                                        <button class="btn" onclick="clearAllRowsForStaff('${staff}')" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);">Clear</button>
+                                    </div>
+                                </div>
+                                <table>
+                                    <tr><th class="col-all"></th><th class="col-time">Time</th><th class="col-event">Event</th><th class="col-venue">Venue</th><th class="col-details">Details</th><th class="col-action">Action</th></tr>
+                                    ${staffRowsHtml}
+                                </table>
+                            </div>
+                        `;
+                    });
+                    area.innerHTML = masterHtml;
+                    return;
+                }
+
+                let staffTabsHtml = '<div class="staff-tabs">';
+                cruise.staffMembers.forEach(staff => {
+                    staffTabsHtml += `<button class="staff-tab ${cruise.activeStaff === staff ? 'active' : ''}" onclick="setActiveStaff('${staff}')" oncontextmenu="handleStaffRightClick(event, '${staff}')">${staff}</button>`;
+                });
+                staffTabsHtml += `<button class="staff-add-btn" onclick="addStaffMember()">+</button></div>`;
+
+                let staff = cruise.activeStaff;
+                if (!staff || (!cruise.staffMembers.includes(staff) && !cruise.inactiveStaffMembers.includes(staff))) {
+                    staff = cruise.staffMembers[0] || cruise.inactiveStaffMembers[0] || "";
+                    cruise.activeStaff = staff;
+                }
+
+                if (!staff) {
+                    area.innerHTML = `<div class="card">${daysHtml}${staffTabsHtml}<p style="color: var(--text-muted);">No active staff. Click "+" to add one.</p></div>`;
+                    return;
+                }
+
+                let meta = getGlobalStaffMeta(staff);
+                let staffRows = cruise.schedules[cruise.activeDay]?.[staff] || [];
+                let rowsHtml = '';
+                staffRows.forEach((row, idx) => {
+                    let isStandardVenue = VENUES.includes(row.venue);
+                    let selectVal = isStandardVenue ? row.venue : "Other";
+                    let venueOptions = VENUES.map(v => `<option value="${v}" ${selectVal === v ? 'selected' : ''}>${v}</option>`).join('');
+                    rowsHtml += `
+                        <tr>
+                            <td class="col-all"><button class="btn-all ${row.applied ? 'applied' : ''}" onclick="applyToAllStaff(${idx}, '${staff}')">ALL</button></td>
+                            <td class="col-time"><input type="text" value="${row.time || ''}" placeholder="Time" oninput="updateRow('${staff}', ${idx}, 'time', this.value)" onblur="handleTimeBlur('${staff}', ${idx})"><button class="btn-success-soft" onclick="addRowBelow('${staff}', ${idx})">+</button></td>
+                            <td class="col-event"><textarea class="table-textarea" placeholder="Event" oninput="updateRow('${staff}', ${idx}, 'event', this.value)">${row.event || ''}</textarea></td>
+                            <td class="col-venue">
+                                <select onchange="if(this.value==='Other'){updateRow('${staff}', ${idx}, 'venue', '');}else{updateRow('${staff}', ${idx}, 'venue', this.value);}render();">${venueOptions}</select>
+                                ${!isStandardVenue ? `<input type="text" style="margin-top: 4px;" value="${row.venue || ''}" placeholder="Custom" oninput="updateRow('${staff}', ${idx}, 'venue', this.value)">` : ''}
+                            </td>
+                            <td class="col-details"><textarea class="table-textarea" placeholder="Details" oninput="updateRow('${staff}', ${idx}, 'details', this.value)">${row.details || ''}</textarea></td>
+                            <td class="col-action"><button class="btn-danger-soft" onclick="removeRow('${staff}', ${idx})">-</button></td>
+                        </tr>
+                    `;
+                });
+                if (!rowsHtml) rowsHtml = `<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 25px;">No entries yet.</td></tr>`;
+
+                let currentIpmKey = cruise.ipmByDay[cruise.activeDay] || 'green';
+                let ipmStyle = IPM_COLORS[currentIpmKey] || IPM_COLORS.green;
+                let ipmOptions = Object.keys(IPM_COLORS).map(k => `<option value="${k}" ${currentIpmKey === k ? 'selected' : ''}>${IPM_COLORS[k].label}</option>`).join('');
+                
+                let staffIpmKey = meta.ipmByDay?.[cruise.activeDay] || 'green';
+                let staffIpmStyle = IPM_COLORS[staffIpmKey] || IPM_COLORS.green;
+                let staffIpmOptions = Object.keys(IPM_COLORS).map(k => `<option value="${k}" ${staffIpmKey === k ? 'selected' : ''}>${IPM_COLORS[k].label}</option>`).join('');
+
+                let controlButtons = `<div style="display: flex; gap: 10px; align-items: center;"><button class="btn" onclick="addEmptyRow()">+ Add Row</button><button class="btn" onclick="clearAllRowsForStaff('${staff}')" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);">Clear Rows</button><button class="btn" onclick="undoAction()" ${undoStack.length === 0 ? 'disabled' : ''}>⮜ Undo</button><button class="btn" onclick="resetToDefault()" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.3);">Clear Day</button></div>`;
+
+                area.innerHTML = `
+                    <div class="card" style="background: transparent; border: none; padding: 0; margin-bottom: 12px;">${daysHtml}${staffTabsHtml}</div>
+                    <div class="card">
+                        <div class="card-header-flex">
+                            <div class="card-header-top">
+                                <div class="card-staff-info">
+                                    <h3>${staff}</h3>
+                                    <div class="ipm-badge-sm" style="background-color: ${staffIpmStyle.bg}; color: ${staffIpmStyle.text};">
+                                        <span>IPM:</span><select onchange="updateStaffMeta('${staff}', 'ipm', this.value)">${staffIpmOptions}</select>
+                                    </div>
+                                    <div class="staff-meta-field"><span>Role:</span><input type="text" ${meta.roleLocked ? 'disabled' : ''} value="${meta.role || ''}" oninput="updateStaffMeta('${staff}', 'role', this.value)"></div>
+                                    <div class="staff-meta-field"><span>DECT:</span><input type="text" ${meta.roleLocked ? 'disabled' : ''} value="${meta.phone || ''}" oninput="updateStaffMeta('${staff}', 'phone', this.value)"></div>
+                                    <div class="staff-meta-field">
+                                        <button class="btn-edit-role" onclick="lockRole('${staff}')">💾</button>
+                                        <button class="btn-edit-role" onclick="unlockRole('${staff}')">✏️</button>
+                                    </div>
+                                </div>
+                                <div class="ipm-badge" style="background-color: ${ipmStyle.bg}; color: ${ipmStyle.text};">
+                                    <span>IPM:</span><select onchange="updateIpmColor(this.value)">${ipmOptions}</select>
+                                </div>
+                            </div>
+                            <div style="margin: 4px 0;">${controlButtons}</div>
+                            <div class="header-meta-row">
+                                <div class="header-cruise-label">Cruise: ${appData.currentCruise}</div>
+                                <input type="text" class="header-input-port" value="${currentMeta.port || ''}" placeholder="Port" oninput="updateMeta('port', this.value)">
+                                <input type="text" class="header-input-date" value="${currentMeta.date || ''}" placeholder="Date" oninput="updateMeta('date', this.value)">
+                            </div>
+                        </div>
+                        <table>
+                            <tr><th class="col-all"></th><th class="col-time">Time</th><th class="col-event">Event</th><th class="col-venue">Venue</th><th class="col-details">Details</th><th class="col-action">Action</th></tr>
+                            ${rowsHtml}
+                        </table>
+                        <div style="margin-top: 15px;">${controlButtons}</div>
+                    </div>
+                `;
+            } else if (appData.currentTab === 'notes') {
+                toolbarEl.style.display = 'flex';
+                titleEl.textContent = "Manager Notes";
+                area.innerHTML = `<div class="card"><h3>Shift Handover Notes</h3><textarea class="notes-textarea" oninput="appData.notes = this.value; autoSave();">${appData.notes || ''}</textarea></div>`;
+            }
+        }
+
+        function printReport() {
+            let originalContent = document.getElementById('content-area').innerHTML;
+            let cruise = getActiveCruiseObj();
+            let currentDay = cruise.activeDay;
+            let currentMeta = cruise.dayMeta[currentDay] || { port: "", date: "" };
+            
+            let printHTML = `<div class="print-page-break"><h2>MASTER SCHEDULE SUMMARY — ${appData.currentCruise} | ${currentDay} (${currentMeta.date} | ${currentMeta.port})</h2><hr style="margin: 10px 0;">`;
+            cruise.staffMembers.forEach(staff => {
+                let sMeta = getGlobalStaffMeta(staff);
+                let sIpmKey = sMeta.ipmByDay?.[currentDay] || 'green';
+                printHTML += `<h4 style="margin-top:15px; color:#333;">Staff: ${staff} (${sMeta.role || 'No Role'}, Phone: ${sMeta.phone || 'N/A'}) | IPM: ${(IPM_COLORS[sIpmKey] || IPM_COLORS.green).label}</h4>`;
+                printHTML += `<table border="1" style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:10px;"><tr><th>Time</th><th>Event</th><th>Venue</th><th>Details</th></tr>`;
+                let sRows = cruise.schedules[currentDay]?.[staff] || [];
+                let hasRows = false;
+                sRows.forEach(r => {
+                    if (r.time || r.event) {
+                        hasRows = true;
+                        printHTML += `<tr><td>${r.time || ''}</td><td>${r.event || ''}</td><td>${r.venue || ''}</td><td>${r.details || ''}</td></tr>`;
+                    }
+                });
+                if (!hasRows) printHTML += `<tr><td colspan="4" style="text-align:center;">No entries</td></tr>`;
+                printHTML += `</table>`;
+            });
+            printHTML += `</div>`;
+
+            document.getElementById('content-area').innerHTML = printHTML;
+            window.print();
+            document.getElementById('content-area').innerHTML = originalContent;
+            render();
+        }
+
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appData, null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", "stage_manager_portal_backup.json");
+            dl.click();
+        }
+
+        function importJSON(event) {
+            const reader = new FileReader();
+            if (event.target.files[0]) {
+                reader.readAsText(event.target.files[0], "UTF-8");
+                reader.onload = function(e) {
+                    try {
+                        appData = JSON.parse(e.target.result);
+                        initAppData();
+                        autoSave();
+                        undoStack = [];
+                        render();
+                        alert('Data imported successfully!');
+                    } catch(err) { alert('File read error'); }
+                }
+            }
+        }
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+
+        loadStorage();
+    </script>
+</body>
+</html>
